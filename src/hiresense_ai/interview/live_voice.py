@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import time
 
-from asr.elevenlabs_asr import ElevenLabsASR
-from realtime_interview_agent.brain import choose_followup
-from realtime_interview_agent.recorder import MetricsLogger, MicrophoneRecorder, RecorderConfig
-from tts.elevenlabs_speaker import ElevenLabsSpeaker
+from hiresense_ai.audio.asr import ElevenLabsASR
+from hiresense_ai.audio.recorder import MetricsLogger, MicrophoneRecorder, RecorderConfig
+from hiresense_ai.audio.tts import ElevenLabsSpeaker
+from hiresense_ai.interview.brain import choose_followup
 
 
 DEFAULT_QUESTIONS = (

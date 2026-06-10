@@ -1,9 +1,0 @@
-__pycache__/
-*.py[oc]
-build/
-dist/
-wheels/
-
-#venv
-.venv
-.env

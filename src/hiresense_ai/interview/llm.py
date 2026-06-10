@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import httpx
 
-from config import FOLLOWUP_MODEL, OPENAI_API_KEY, OPENAI_BASE_URL
-from realtime_interview_agent.nlu import NLUSignals
+from hiresense_ai.config import FOLLOWUP_MODEL, OPENAI_API_KEY, OPENAI_BASE_URL
+from hiresense_ai.interview.nlu import NLUSignals
 
 
 def generate_followup(transcript: str, asked_questions: list[str], signals: NLUSignals) -> str:

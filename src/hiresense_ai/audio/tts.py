@@ -1,10 +1,10 @@
-from elevenlabs.client import ElevenLabs
 import io
 
 import sounddevice as sd
 import soundfile as sf
+from elevenlabs.client import ElevenLabs
 
-from config import ELEVENLABS_API_KEY, ELEVENLABS_TTS_MODEL, ELEVENLABS_VOICE_ID
+from hiresense_ai.config import ELEVENLABS_API_KEY, ELEVENLABS_TTS_MODEL, ELEVENLABS_VOICE_ID
 
 FALLBACK_VOICE_IDS = (
     ELEVENLABS_VOICE_ID,

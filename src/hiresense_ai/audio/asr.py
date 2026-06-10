@@ -1,5 +1,10 @@
 from elevenlabs.client import ElevenLabs
-from config import ELEVENLABS_API_KEY, ELEVENLABS_STT_LANGUAGE, ELEVENLABS_STT_MODEL
+
+from hiresense_ai.config import (
+    ELEVENLABS_API_KEY,
+    ELEVENLABS_STT_LANGUAGE,
+    ELEVENLABS_STT_MODEL,
+)
 
 
 class ElevenLabsASR:

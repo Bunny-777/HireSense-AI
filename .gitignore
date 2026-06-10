@@ -3,6 +3,9 @@ __pycache__/
 build/
 dist/
 wheels/
+.DS_Store
+metrics.jsonl
+node_modules/
 
 #venv
 .venv

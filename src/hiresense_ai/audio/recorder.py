@@ -10,7 +10,7 @@ import numpy as np
 import sounddevice as sd
 import soundfile as sf
 
-from realtime_interview_agent.vad import EnergyVAD, VADConfig
+from hiresense_ai.interview.vad import EnergyVAD, VADConfig
 
 
 @dataclass
