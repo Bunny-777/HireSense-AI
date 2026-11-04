@@ -1,0 +1,3 @@
+[console_scripts]
+allystack-live = hiresense_ai.interview.live_voice:main
+hiresense-live = hiresense_ai.interview.live_voice:main

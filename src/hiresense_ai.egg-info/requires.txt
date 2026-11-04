@@ -1,0 +1,6 @@
+elevenlabs>=2.39.0
+httpx>=0.28.1
+numpy>=2.4.3
+python-dotenv>=1.2.2
+sounddevice>=0.5.5
+soundfile>=0.13.1

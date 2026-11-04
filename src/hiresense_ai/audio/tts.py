@@ -1,4 +1,5 @@
 import io
+import subprocess
 
 import sounddevice as sd
 import soundfile as sf
@@ -37,3 +38,23 @@ class ElevenLabsSpeaker:
             except Exception:
                 pass
         raise RuntimeError("ElevenLabs TTS failed for all configured voice ids.")
+
+
+class SystemSpeaker:
+    """Uses Windows built-in speech synthesizer for local voice output without any API key."""
+    def speak(self, text: str) -> None:
+        clean = text.replace('"', '""').replace("'", "''")
+        cmd = f'Add-Type -AssemblyName System.Speech; $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer; $synth.Speak("{clean}")'
+        subprocess.run(["powershell", "-NoProfile", "-Command", cmd], capture_output=True)
+
+
+def get_speaker(no_tts: bool = False):
+    """Returns ElevenLabs speaker if key is present, otherwise falls back to Windows system speaker."""
+    if no_tts:
+        return None
+    if ELEVENLABS_API_KEY:
+        try:
+            return ElevenLabsSpeaker()
+        except Exception:
+            return SystemSpeaker()
+    return SystemSpeaker()

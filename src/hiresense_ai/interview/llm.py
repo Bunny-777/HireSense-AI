@@ -28,7 +28,7 @@ def generate_followup(transcript: str, asked_questions: list[str], signals: NLUS
         "model": FOLLOWUP_MODEL,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": 0.2,
-        "max_tokens": 50,
+        "max_tokens": 150,
     }
     try:
         r = httpx.post(
@@ -38,7 +38,10 @@ def generate_followup(transcript: str, asked_questions: list[str], signals: NLUS
             timeout=15,
         )
         r.raise_for_status()
-        q = _clean_question(r.json()["choices"][0]["message"]["content"])
+        raw_content = r.json()["choices"][0]["message"]["content"]
+        if not raw_content:
+            return fallback
+        q = _clean_question(raw_content)
         if "?" not in q:
             q = q.rstrip(".! ") + "?"
         if q.lower().rstrip("?.! ") == last_q.lower().rstrip("?.! "):
@@ -99,7 +102,17 @@ def _fallback(asked: list[str], signals: NLUSignals) -> str:
 
 
 def _clean_question(text: str) -> str:
-    return text.strip().splitlines()[0].strip().strip('"')
+    cleaned = text.strip().splitlines()[0].strip().strip('"')
+    return (
+        cleaned.replace("\u202f", " ")
+        .replace("\u00a0", " ")
+        .replace("\u2019", "'")
+        .replace("\u2018", "'")
+        .replace("\u201c", '"')
+        .replace("\u201d", '"')
+        .encode("ascii", "ignore")
+        .decode("ascii")
+    )
 
 
 def _too_similar_to_answer(question: str, answer: str) -> bool:
