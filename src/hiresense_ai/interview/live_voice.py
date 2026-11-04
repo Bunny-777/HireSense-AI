@@ -20,7 +20,7 @@ DEFAULT_QUESTIONS = (
 EXIT_TERMS = ("stop interview", "exit", "quit", "goodbye")
 
 QUESTION = DEFAULT_QUESTIONS[0]
-TURNS = 5
+TURNS = int(os.getenv("INTERVIEW_TURNS", "5"))
 NO_TTS = os.getenv("NO_TTS", "false").lower() in ("1", "true", "yes")
 TARGET_FOLLOWUP_MS = 300.0
 RECORDER_CONFIG = RecorderConfig(

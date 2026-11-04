@@ -4,7 +4,11 @@ Allows testing the interview logic, NLU, and question-selection flow
 without requiring OpenAI or ElevenLabs API keys or a microphone.
 """
 
+import os
 import time
+from dotenv import load_dotenv
+
+load_dotenv()
 from hiresense_ai.interview.brain import choose_followup
 from hiresense_ai.interview.nlu import analyze_answer
 from hiresense_ai.interview.llm import generate_followup
@@ -16,7 +20,7 @@ DEFAULT_QUESTIONS = (
     "Tell me about a time you handled an outage or production incident.",
 )
 EXIT_TERMS = ("stop interview", "exit", "quit", "goodbye")
-TURNS = 5
+TURNS = int(os.getenv("INTERVIEW_TURNS", "5"))
 
 
 def main():
