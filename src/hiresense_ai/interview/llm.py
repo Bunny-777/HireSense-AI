@@ -6,6 +6,10 @@ from hiresense_ai.config import FOLLOWUP_MODEL, OPENAI_API_KEY, OPENAI_BASE_URL
 from hiresense_ai.interview.nlu import NLUSignals
 
 
+# ---------------------------------------------------------------------------
+# Follow-up question generation
+# ---------------------------------------------------------------------------
+
 def generate_followup(transcript: str, asked_questions: list[str], signals: NLUSignals) -> str:
     fallback = _fallback(asked_questions, signals)
     if not OPENAI_API_KEY:
@@ -24,33 +28,197 @@ def generate_followup(transcript: str, asked_questions: list[str], signals: NLUS
         f"Detected intent: {signals.intent}\n"
         f"Previous question to avoid repeating: {last_q}"
     )
-    payload = {
-        "model": FOLLOWUP_MODEL,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.2,
-        "max_tokens": 150,
-    }
+    return _call_llm(prompt, fallback, max_tokens=150, validate_question=True, last_q=last_q, transcript=transcript)
+
+
+# ---------------------------------------------------------------------------
+# End-of-interview review and rating
+# ---------------------------------------------------------------------------
+
+def generate_review(
+    intro_transcript: str,
+    conversation: list[dict],
+    job_description: str,
+) -> dict:
+    """
+    Generate a structured review and rating based on the full interview.
+
+    Returns a dict with keys:
+        summary       - brief overall summary of the candidate
+        strengths     - bullet list of strengths observed
+        improvements  - bullet list of areas to improve
+        rating        - int 1-10 score vs. job description
+        rating_reason - one sentence explaining the rating
+        recommendation - "Strong Yes" | "Yes" | "Maybe" | "No"
+    """
+    if not OPENAI_API_KEY:
+        return _offline_review()
+
+    convo_text = "\n".join(
+        f"Q: {turn['question']}\nA: {turn['answer']}" for turn in conversation
+    )
+
+    prompt = f"""You are an expert technical hiring manager.
+
+You just finished interviewing a candidate. Below is their introduction and the full conversation.
+
+---
+CANDIDATE INTRODUCTION:
+{intro_transcript or "(no introduction provided)"}
+
+INTERVIEW CONVERSATION:
+{convo_text}
+
+JOB DESCRIPTION:
+{job_description or "Software Engineer - general technical role requiring problem-solving, communication, and project delivery skills."}
+---
+
+Please provide a structured evaluation in EXACTLY this format (no extra text):
+
+SUMMARY:
+<2-3 sentence overall summary of the candidate>
+
+STRENGTHS:
+- <strength 1>
+- <strength 2>
+- <strength 3>
+
+AREAS FOR IMPROVEMENT:
+- <area 1>
+- <area 2>
+
+RATING: <integer 1-10>
+RATING REASON: <one sentence explaining the score>
+RECOMMENDATION: <one of: Strong Yes | Yes | Maybe | No>
+"""
+
     try:
         r = httpx.post(
             f"{OPENAI_BASE_URL}/chat/completions",
             headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
-            json=payload,
-            timeout=15,
+            json={
+                "model": FOLLOWUP_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+                "max_tokens": 600,
+            },
+            timeout=30,
         )
         r.raise_for_status()
-        raw_content = r.json()["choices"][0]["message"]["content"]
-        if not raw_content:
-            return fallback
-        q = _clean_question(raw_content)
-        if "?" not in q:
-            q = q.rstrip(".! ") + "?"
-        if q.lower().rstrip("?.! ") == last_q.lower().rstrip("?.! "):
-            return fallback
-        if _too_similar_to_answer(q, transcript):
-            return fallback
-        return q
+        raw = r.json()["choices"][0]["message"]["content"] or ""
+        return _parse_review(raw)
     except Exception:
-        return fallback
+        return _offline_review()
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+def _call_llm(
+    prompt: str,
+    fallback: str | None,
+    max_tokens: int = 150,
+    validate_question: bool = False,
+    multiline: bool = False,
+    last_q: str = "",
+    transcript: str = "",
+) -> str:
+    try:
+        r = httpx.post(
+            f"{OPENAI_BASE_URL}/chat/completions",
+            headers={"Authorization": f"Bearer {OPENAI_API_KEY}"},
+            json={
+                "model": FOLLOWUP_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.3,
+                "max_tokens": max_tokens,
+            },
+            timeout=20,
+        )
+        r.raise_for_status()
+        raw = r.json()["choices"][0]["message"]["content"]
+        if not raw:
+            return fallback or ""
+        result = raw.strip() if multiline else _clean_text(raw)
+        if validate_question:
+            if "?" not in result:
+                result = result.rstrip(".! ") + "?"
+            if last_q and result.lower().rstrip("?.! ") == last_q.lower().rstrip("?.! "):
+                return fallback or result
+            if transcript and _too_similar_to_answer(result, transcript):
+                return fallback or result
+        return result
+    except Exception:
+        return fallback or ""
+
+
+def _parse_review(raw: str) -> dict:
+    """Parse the structured LLM review output into a dict."""
+    # Normalize unicode dashes, quotes, etc. that Windows cp1252 can't encode
+    raw = (
+        raw.replace("\u2011", "-").replace("\u2013", "-").replace("\u2014", "-")
+        .replace("\u2019", "'").replace("\u2018", "'")
+        .replace("\u201c", '"').replace("\u201d", '"')
+        .replace("\u202f", " ").replace("\u00a0", " ")
+        .encode("ascii", "ignore").decode("ascii")
+    )
+    result = {
+        "summary": "",
+        "strengths": [],
+        "improvements": [],
+        "rating": 0,
+        "rating_reason": "",
+        "recommendation": "Maybe",
+    }
+    if not raw:
+        return _offline_review()
+
+    section = None
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("SUMMARY:"):
+            section = "summary"
+            tail = line[len("SUMMARY:"):].strip()
+            if tail:
+                result["summary"] = tail
+        elif line.startswith("STRENGTHS:"):
+            section = "strengths"
+        elif line.startswith("AREAS FOR IMPROVEMENT:"):
+            section = "improvements"
+        elif line.startswith("RATING:"):
+            section = None
+            try:
+                result["rating"] = int(line.split(":")[1].strip().split()[0])
+            except (ValueError, IndexError):
+                result["rating"] = 5
+        elif line.startswith("RATING REASON:"):
+            section = None
+            result["rating_reason"] = line[len("RATING REASON:"):].strip()
+        elif line.startswith("RECOMMENDATION:"):
+            section = None
+            result["recommendation"] = line[len("RECOMMENDATION:"):].strip()
+        elif section == "summary" and line:
+            result["summary"] = (result["summary"] + " " + line).strip()
+        elif section == "strengths" and line.startswith("-"):
+            result["strengths"].append(line[1:].strip())
+        elif section == "improvements" and line.startswith("-"):
+            result["improvements"].append(line[1:].strip())
+
+    return result
+
+
+def _offline_review() -> dict:
+    return {
+        "summary": "Interview completed. Set OPENAI_API_KEY (Groq) in .env for a detailed AI review.",
+        "strengths": ["Completed the interview session"],
+        "improvements": ["Add Groq API key to enable AI-powered review"],
+        "rating": 0,
+        "rating_reason": "No LLM key configured for evaluation.",
+        "recommendation": "N/A",
+    }
 
 
 def _fallback(asked: list[str], signals: NLUSignals) -> str:
@@ -101,7 +269,7 @@ def _fallback(asked: list[str], signals: NLUSignals) -> str:
     return options[0]
 
 
-def _clean_question(text: str) -> str:
+def _clean_text(text: str) -> str:
     cleaned = text.strip().splitlines()[0].strip().strip('"')
     return (
         cleaned.replace("\u202f", " ")
