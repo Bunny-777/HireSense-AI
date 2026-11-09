@@ -15,3 +15,4 @@ export interface VerdictData {
   gaps: string[]
   reasoning: string
 }
+

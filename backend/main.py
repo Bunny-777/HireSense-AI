@@ -13,15 +13,6 @@ import sys
 from pathlib import Path
 from typing import AsyncGenerator, List, Literal
 
-from dotenv import load_dotenv
-
-# Ensure the HireSense-AI source is in python path
-REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "src"))
-
-# Load environment variables (.env in repo root)
-load_dotenv(REPO_ROOT / ".env")
-
 import docx
 import httpx
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
@@ -30,9 +21,12 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 import pypdf
 
-from hiresense_ai.config import FOLLOWUP_MODEL, OPENAI_API_KEY, OPENAI_BASE_URL
-from hiresense_ai.interview.brain import choose_followup
-from hiresense_ai.interview.nlu import analyze_answer
+try:
+    from backend.config import FOLLOWUP_MODEL, OPENAI_API_KEY, OPENAI_BASE_URL
+    from backend.brain import choose_followup
+except ImportError:
+    from config import FOLLOWUP_MODEL, OPENAI_API_KEY, OPENAI_BASE_URL
+    from brain import choose_followup
 
 app = FastAPI(title="HireSense AI API", version="1.0.0")
 
@@ -403,5 +397,6 @@ def parse_verdict(raw: str) -> dict:
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("backend.main:app", host="127.0.0.1", port=8000, reload=True)
+    target = "main:app" if Path("main.py").exists() else "backend.main:app"
+    uvicorn.run(target, host="127.0.0.1", port=8000, reload=True)
 

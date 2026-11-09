@@ -1,126 +1,102 @@
 # HireSense AI
 
-Voice-based AI interview agent for running short mock technical interviews with:
+An AI-powered technical interview preparation and candidate evaluation web application.
 
-- microphone capture and simple VAD
-- ElevenLabs speech-to-text
-- rule-based or LLM-assisted follow-up generation
-- optional ElevenLabs text-to-speech playback
-- per-turn latency and transcript logging
+HireSense AI allows candidates and hiring teams to:
+- Upload job descriptions (PDF, DOCX, or text)
+- Conduct interactive, multi-stage technical interviews (Introduction, Technical Questions, Deep-Dive Projects)
+- Stream interview questions and follow-ups with real-time SSE (Server-Sent Events)
+- Receive structured evaluation verdicts (Rating, Summary, Strengths, Improvement Areas, Recommendation)
 
-## Project Structure
+---
+
+## Architecture & Project Structure
+
+The project is structured into two clean directories:
 
 ```text
-HireSense_AI/
-├── scripts/
-│   └── metrics-summary.mjs
-├── src/
-│   └── hiresense_ai/
-│       ├── audio/
-│       │   ├── asr.py
-│       │   ├── recorder.py
-│       │   └── tts.py
-│       ├── interview/
-│       │   ├── brain.py
-│       │   ├── live_voice.py
-│       │   ├── llm.py
-│       │   ├── nlu.py
-│       │   └── vad.py
-│       └── config.py
-├── pyproject.toml
-├── package.json
+HireSense-AI/
+├── backend/                  # FastAPI backend server
+│   ├── brain.py              # Follow-up interview question logic & fallbacks
+│   ├── config.py             # App environment & LLM configuration
+│   ├── main.py               # FastAPI API endpoints & SSE streaming
+│   ├── requirements.txt      # Python backend dependencies
+│   └── .env.example          # Backend environment variables template
+├── frontend/                 # React + TypeScript + Vite web app
+│   ├── src/
+│   │   ├── components/       # StartScreen, InterviewScreen, ResultScreen
+│   │   ├── api.ts            # REST & SSE streaming API client
+│   │   ├── App.tsx           # Main application state machine
+│   │   ├── types.ts          # TypeScript models & types
+│   │   └── main.tsx          # Application entrypoint
+│   ├── package.json          # Node dependencies and build scripts
+│   └── vite.config.ts        # Vite configuration & backend proxy
+├── run_app.bat               # One-click launcher for both backend & frontend
+├── run_backend.bat           # Launcher for FastAPI backend
+├── run_frontend.bat          # Launcher for React frontend
 └── README.md
 ```
 
-## Requirements
+---
 
-- Python 3.11+
-- Node.js 18+ for the metrics summary utility
-- working microphone/audio input
-- ElevenLabs API key
-- OpenAI API key only if you want LLM-generated follow-up questions
+## Getting Started
 
-## Setup
+### 1. Environment Configuration
 
-1. Create and activate a virtual environment.
-2. Install dependencies:
+Copy the example configuration to `.env`:
 
 ```bash
-python3 -m pip install -e .
+cp backend/.env.example .env
 ```
 
-3. Add a `.env` file in the project root:
+Configure your LLM provider in `.env` (Groq is recommended for ultra-low latency, or OpenAI):
 
 ```env
-ELEVENLABS_API_KEY=your_elevenlabs_key
-OPENAI_API_KEY=your_openai_key
+# For Groq:
+OPENAI_API_KEY=gsk_your_groq_api_key_here
+OPENAI_BASE_URL=https://api.groq.com/openai/v1
+FOLLOWUP_MODEL=llama-3.3-70b-versatile
 
-# Optional overrides
-FOLLOWUP_MODEL=gpt-4o-mini
-OPENAI_BASE_URL=https://api.openai.com/v1
-ELEVENLABS_STT_LANGUAGE=en
-ELEVENLABS_STT_MODEL=scribe_v1
-ELEVENLABS_TTS_MODEL=eleven_turbo_v2
-ELEVENLABS_VOICE_ID=m5qndnI7u4OAdXhH0Mr5
+# Or for OpenAI:
+# OPENAI_API_KEY=sk-your_openai_api_key_here
+# OPENAI_BASE_URL=https://api.openai.com/v1
+# FOLLOWUP_MODEL=gpt-4o-mini
 ```
 
-4. Optional: install Node.js dependencies if you later add more JS tooling. The current repo utility runs with built-in Node modules only.
+*(Note: HireSense AI also includes an offline rule-based fallback mode if no API key is provided).*
 
-## Run
+---
 
-After the editable install above, run:
+### 2. Backend Setup
 
 ```bash
-python -m hiresense_ai.interview.live_voice
+cd backend
+python -m venv .venv
+# On Windows:
+.venv\Scripts\activate
+# On macOS/Linux:
+# source .venv/bin/activate
+
+pip install -r requirements.txt
+python -m uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 ```
 
-Without installing the package, run:
+Backend API will be live at `http://127.0.0.1:8000`.
+
+---
+
+### 3. Frontend Setup
 
 ```bash
-PYTHONPATH=src python -m hiresense_ai.interview.live_voice
+cd frontend
+npm install
+npm run dev
 ```
 
-You can also use the package entrypoint:
+Frontend UI will be live at `http://localhost:5173`.
 
-```bash
-hiresense-live
-```
+---
 
-## Node Utility
+### Quick Launch (Windows)
 
-The repository now includes a Node.js script for inspecting `metrics.jsonl`:
-
-```bash
-npm run metrics:summary
-```
-
-You can also pass a custom metrics file:
-
-```bash
-node scripts/metrics-summary.mjs path/to/metrics.jsonl
-```
-
-## How It Works
-
-1. `audio/recorder.py` listens on the microphone and stops after silence is detected.
-2. `audio/asr.py` sends the recorded audio to ElevenLabs STT.
-3. `interview/live_voice.py` decides whether to exit, retry, or continue the interview loop.
-4. Follow-up questions come from:
-   - `interview/brain.py` for local rule-based logic used by the current entrypoint
-   - `interview/llm.py` plus `interview/nlu.py` if you choose to wire in LLM-based follow-up generation
-5. `audio/tts.py` speaks the interviewer response back to the user.
-6. `MetricsLogger` appends turn data to `metrics.jsonl`.
-
-## Notes
-
-- The current runnable entrypoint is [`src/hiresense_ai/interview/live_voice.py`](/Users/dhruvdiwakirti/HireSense_AI/src/hiresense_ai/interview/live_voice.py).
-- Runtime metrics are written to `metrics.jsonl` in the repository root.
-- If `OPENAI_API_KEY` is missing, LLM follow-up generation should fall back to local logic where used.
-
-## Cleanup Applied
-
-- removed the stale nested `allystack/` duplicate project
-- grouped runtime code under `src/hiresense_ai/`
-- separated audio adapters from interview logic
-- added a Node.js metrics summary utility for repository tooling
-- standardized the README around the new package layout
+Double click `run_app.bat` to launch both backend and frontend servers simultaneously in dedicated windows.

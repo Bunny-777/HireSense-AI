@@ -1,4 +1,8 @@
+from __future__ import annotations
+
+
 def choose_followup(transcript: str, asked_questions: list[str]) -> str:
+    """Offline rule-based question selector fallback when no LLM API key is configured."""
     text = transcript.lower()
     if any(k in text for k in ("outage", "incident", "failure", "rollback", "bug")):
         candidates = [
@@ -12,7 +16,7 @@ def choose_followup(transcript: str, asked_questions: list[str]) -> str:
             "How did you evaluate output quality before deployment?",
             "What did you change after the first test results?",
         ]
-    elif any(k in text for k in ("deployed", "deployment", "cloud", "streamlit", "release")):
+    elif any(k in text for k in ("deployed", "deployment", "cloud", "streamlit", "release", "docker", "k8s", "aws")):
         candidates = [
             "How did you plan the deployment, and what stack did you use?",
             "What risks did you expect before release, and how did you handle them?",
@@ -20,8 +24,8 @@ def choose_followup(transcript: str, asked_questions: list[str]) -> str:
         ]
     else:
         candidates = [
-            "What was your role in this, and which decisions were yours?",
-            "How did you test that this worked as expected?",
+            "What was your role in this project, and which key architectural decisions were yours?",
+            "How did you test that your implementation worked as expected under load?",
         ]
 
     asked = {q.lower().rstrip("?.! ") for q in asked_questions}
@@ -29,3 +33,4 @@ def choose_followup(transcript: str, asked_questions: list[str]) -> str:
         if q.lower().rstrip("?.! ") not in asked:
             return q
     return candidates[0]
+
